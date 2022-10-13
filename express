@@ -1,0 +1,40 @@
+const express = require('express');
+const stream = require('express-stream');
+const app = express();
+const ytdl = require('ytdl-core');
+const fs = require('fs');
+const path = require('path');
+const port = 8080;
+
+//次(②)のコードはここに挿入
+
+app.get('/api/ytdl/:youtubeId',async function(req, res) {
+   const { youtubeId } = req.params;
+   const destFilePath = path.resolve(__dirname, `./tmp/${youtubeId}.mp4`);
+   let info = await ytdl.getInfo(youtubeId);//動画IDから動画の詳細を取得
+   if( fs.existsSync(destFilePath) ){//すでに一度ダウンロードしていた場合
+      res.download(destFilePath);
+      return;
+   }
+//動画をダウンロード
+let stream = ytdl(info.videoDetails.video_url, {filter: (format) => format.container === "mp4"/*フォーマットをmp4指定*/, highWaterMark: 32 * 1024 * 1024, quality: "highest" })
+stream.pipe(fs.createWriteStream(destFilePath))
+
+stream.on('error', (err) => {//ダウンロードに失敗した場合
+   console.error(err);
+   res.status(400).send('download error!');//アクセスしたユーザーにエラーを返す
+   return; 
+});
+stream.on('end', () => {//ダウンロードに成功したら
+   console.log(`${youtubeId}.mp4 downloaded.`);
+   res.download(destFilePath);//動画ファイルを返す
+   return;
+  })
+})
+app.get('/',function(req, res) {
+	res.send("Youtube-Downloader")
+});
+	
+app.listen(port, function() {
+	console.log(`[NodeJS] Application Listening on Port : ${port}`);
+});
